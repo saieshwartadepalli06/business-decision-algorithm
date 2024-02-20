@@ -1,0 +1,395 @@
+---
+title: "Business Decision Algorithms Final Project"
+author: "Sai Eshwar Tadepalli and Harichandana Gonuguntla"
+date: "2023-10-25"
+output:
+  html_document:
+    highlight: breezedark
+    toc: yes
+    fig_width: 15
+    fig_height: 10
+editor_options: 
+  chunk_output_type: console
+---
+
+## Question - 1
+**Of the 8 predictors, which predictors have a significant influence on amount spent on concessions? Which predictors are multicollinear? Justify your response with reasons from the analysis.**
+
+### Introduction
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+# reading the data 
+data1 <- read.csv(url("http://data.mishra.us/files/project_data.csv"))
+data2 <- read.csv(url("http://data.mishra.us/files/project_reviews.csv"))
+
+summary(data1)
+summary(data2)
+
+# Check for missing values in the DataFrame
+missing_values <- is.na(data1)
+#print(missing_values)
+
+# Optionally, count missing values in each column
+missing_counts <- colSums(missing_values)
+print(missing_counts)
+```
+
+### Regression analysis
+
+```{r, warning=FALSE, message=FALSE}
+lm_model <- lm(amount_spent ~ age + job + streaming + education + seen_alone + discount + days_member + movies_seen, data = data1)
+summary(lm_model)
+str(data1)
+data1$education <- factor(data1$education)
+data1$seen_alone <- factor(data1$seen_alone)
+data1$discount <- factor(data1$discount)
+data1$job <- factor(data1$job)
+
+summary(data1)
+```
+
+> The predictors are statistically significant if their p-value is less than 0.05. Statistically significant means that the predictor variable has a significant influence on the outcome (Here amount spent on concessions). In layman's terms, "statistically significant" means that the observed result is unlikely to be due to chance and is probably a real effect. Those variables which have p-value is less than 0.05 are **job_adminstration,age,streaming,days_member,movies_seen** i.e all these variables significantly influence the amount spent on concessions.
+
+```{r, warning=FALSE, message=FALSE}
+# multicollinearity 
+library(car)
+vif(lm_model)
+```
+
+> VIF is used to assess multicollinearity, and a high VIF value suggests that a predictor may be multicollinear with other predictors in the model. Generally, a VIF value greater than 5 is often considered indicative of multicollinearity. But we use GVIF^(1/(2Df)) instead of the traditional VIF because it helps provide a more accurate assessment of multicollinearity, based on the GVIF^(1/(2Df)) results.
+Job has a GVIF^(1/(2Df)) of 1.04, and age has GVIF^(1/(2Df)) of 1.09 which is slightly higher but still below the cutoff of 2 for high multicollinearity. So job,age likely have minor multicollinearity.
+Education has the highest GVIF^(1/2*Df) at 1.15, suggesting moderate multicollinearity with other predictors.
+
+## Question - 2
+**Which predictors have a positive influence and which predictors have a negative influence on the amount spent on concessions? Which analysis, regression or penalized regression, helped you answer this question? If you ran a neural net model, can it help you find the significant (or not) predictors and their magnitude and direction of influence on the outcome?**
+
+```{r, warning=FALSE, message=FALSE}
+library(glmnet)
+summary(lm_model)
+
+# lasso regression for variable selection
+lasso_model <- glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha=1)
+plot(lasso_model, xvar = "lambda")
+cv.binomial <- cv.glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha=1)
+best.lambda<- cv.binomial$lambda.min
+lasso_model_best <- glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha = 1, lambda = best.lambda)
+# Display the selected variables
+selected_variables_lasso <- coef(lasso_model_best)
+selected_variables_lasso
+```
+
+> In the linear model the estimates(beta) with positive values have positive influence and the estimates with negative values have a negative influence on the outcome(Here amount spent on concessions). 
+For example, the coefficient for "age" is 0.19, which means that for  one-unit **increase** in age, the amount spent on concessions is expected to **increase** by approximately 0.19 units, assuming all other predictors remain constant. The coefficient for "streaming" is -0.85, indicating that if the number of streaming services the customer enrolled into increases, the amount spent on concessions is expected to **decrease** by approximately 0.85 , holding all other predictors constant.
+The coefficent for "days_member" is 0.04, indicating that for 1 unit **increase** in days_member, the amount spent on concessions is expected to **increase** by approximately 0.04 units. And finally, the coefficent for "movies_seen" is 0.5, indicating that for 1 unit **increase** in movies_seen, the amount spent on concessions is expected to **increase** by approximately 0.5 units.
+
+> The analysis used to answer this question is a traditional linear regression. In linear regression, the coefficients for each predictor help us to understand the direction and magnitude of their influence on the dependent variable. Positive coefficients indicate a positive influence, while negative coefficients suggest a negative influence. This analysis is based on the assumptions of linear regression and does not involve penalized regression. **Both the techniques linear and penalized regression can be used to do this analysis of positive and negative influences**. In Penalized regression also, if s0 coefficient values is positive it indicates positive influence and if it is negative it indicates negative influence.
+
+> In this scenario, a neural network model has not been used. Neural networks can be very complex and challenging to interpret, they are often seen as black-box models because it can be challenging to explain why they make specific predictions and neural networks often require a substantial amount of data to train effectively, and they can be prone to overfitting if not properly regularized or validated.
+
+## Question - 3
+
+**Which analysis, linear regression or penalized regression, helps you select relevant variables? Which predictor variables would you use in the model? Justify your answer using the analysis. Would a Ridge or a LASSO help in selecting relevant predictors?**
+
+### Penalized Regression
+
+```{r, warning=FALSE, message=FALSE}
+# lasso regression for variable selection
+lasso_model <- glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha=1)
+plot(lasso_model, xvar = "lambda")
+cv.binomial <- cv.glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha=1)
+best.lambda<- cv.binomial$lambda.min
+lasso_model_best <- glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha = 1, lambda = best.lambda)
+# Display the selected variables
+selected_variables_lasso <- coef(lasso_model_best)
+selected_variables_lasso
+
+# ridge regression for variable selection
+ridge_model <- glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha=0)
+plot(ridge_model, xvar = "lambda")
+cv.binomial <- cv.glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha=0)
+best.lambda<- cv.binomial$lambda.min
+ridge_model_best <- glmnet(x=as.matrix(data1[,-9]), y=data1$amount_spent, alpha = 0, lambda = best.lambda)
+# Display the selected variables
+selected_variables_ridge <- coef(ridge_model_best)
+selected_variables_ridge
+```
+
+> Penalized regression techniques (Lasso/Ridge) are usually more efficient in selecting relevant variables when compared to traditional linear regression. Ridge regression is usually preferred when there is very high multi collinearity and when such multicollinearity is of significant issue, but in the current business case the predictors do not have a very high multi collinearity and hence we have preferred to use Lasso regression for our analysis.
+
+> Using lasso regression the variables **age,streaming,days_member,movies_seen** are selected.When we check the  coefficents in Lasso model output the Age,streaming,days_member,movies_seen variables have **non-zero** coefficent values and hence such predictors are significant, the other predictors has a coefficient denoted as ".", which means that its coefficient is zero in this Penalized regression model. While Age,days_member,movies_seen have positive influence(since they are coefficients with positive values) which means the amount spent on concessions increases with increase in these predictor values and streaming has negative influence(since this coefficient has negative value) which means the amount spent on concessions decreases with increase in streaming value.
+
+## Question - 4
+
+**If you split the data 70-30 versus 80-20, how does it influence RMSE and R-squared values of the linear regression?**
+
+### Predictive model
+
+```{r, warning=FALSE, message=FALSE}
+set.seed(123)
+train_index <- sample(seq_len(nrow(data1)), size=0.7*nrow(data1))
+train_data <- data1[train_index, ]
+test_data <- data1[-train_index, ]
+
+lm_train <- lm(amount_spent ~ age + job + streaming + education + seen_alone + discount + days_member + movies_seen, data = train_data)
+lm_test <- lm(amount_spent ~ age + job + streaming + education + seen_alone + discount + days_member + movies_seen, data = test_data)
+
+rmse_train <- sqrt(mean(lm_train$residuals^2))
+rmse_test <- sqrt(mean(lm_test$residuals^2))
+
+rsq_train <- summary(lm_train)$r.squared
+rsq_test <- summary(lm_test)$r.squared
+
+rmse_train # 9.67
+rmse_test #  9.30
+rsq_train # 0.63
+rsq_test # 0.65
+```
+
+```{r}
+set.seed(123)
+train_index_1 <- sample(seq_len(nrow(data1)), size=0.8*nrow(data1))
+train_data_1 <- data1[train_index_1, ]
+test_data_1 <- data1[-train_index_1, ]
+
+lm_train_1 <- lm(amount_spent ~ age + job + streaming + education + seen_alone + discount + days_member + movies_seen, data = train_data_1)
+lm_test_1 <- lm(amount_spent ~ age + job + streaming + education + seen_alone + discount + days_member + movies_seen, data = test_data_1)
+
+rmse_train_1 <- sqrt(mean(lm_train_1$residuals^2))
+rmse_test_1 <- sqrt(mean(lm_test_1$residuals^2))
+
+rsq_train_1 <- summary(lm_train_1)$r.squared
+rsq_test_1 <- summary(lm_test_1)$r.squared
+
+rmse_train_1 #  9.61
+rmse_test_1 #  9.26
+rsq_train_1 # 0.63
+rsq_test_1 #  0.67
+```
+
+> With a larger training set (80-20 when compared to 70-30) the model has more data to learn from. This can potentially lead to better model fit and lower RMSE on the training data. Hence RMSE of 80-20 split train data is 9.61 which is less in comparison to 9.67 for the 70-30 split train data.
+
+> The extra training data with 80-20 must have covered the input space well rather than introducing outliers or noise. This provides useful learning signal rather than leading to overfitting and thus RMSE in test set for 80-20 split is less since the model covered the input space well.The RMSE of 80-20 split test data is 9.25 which is less in comparison to 9.30 for the 70-30 split test data.
+
+> If the 70-30 training set contains data points that are more representative of the overall population, the model might perform better on this set and, therefore, have a higher R-squared compared to the 80-20 training set, which may have a different distribution of data points.The R-squared of 80-20 train set 0.63 is less than that of 70-30 train set 0.64.
+
+> If the dataset contains noisy or unrepresentative data points, this can affect the R2 value. A larger test set, like the 80-20 split, may be more effective at averaging out the impact of individual outliers or noisy data points, leading to a higher R2 value.The R-squared of 80-20 test set 0.67 is more than that of 70-30 test set 0.65. Therefore, 80-20 split is the best over 70-30 split. To summarize, the 80-20 split is the best one (R-squared is an indicator of the model's goodness of fit) since the R2 value of test set in 80-20 split is more when compared to 70-30 split. 
+
+## Question - 5
+
+**Given the regression analysis, what strategies can MovieMagic come up with to increase amount spent on concessions? Discuss the magnitude and direction of the anticipated effect. Use both statistical justification and a simplified explanation (anticipating many decision-makers at MovieMagic may not know all the technical jargon).**
+
+> From the above regression analysis that we have performed - **age, days_member, movies_seen** are the variables which have positive influence on the outcome variable i.e amount spent on concessions. That means these variables contribute to an increase in the outcome value. The predictor **streaming** has negative influence on the outcome variable. That means this variable contributes to a decrease in the outcome value.
+
+> Based on this the MovieMagic team can comeup with the below strategies:
+a. They can focus on giving concessions to aged/older customers rather than younger customers since age has positive coefficient which contributes to an increase in the amount spent on concessions.This positive coefficient suggests that as the "age" variable increases by one unit, the response variable amount_spent is expected to increase by approximately 0.18 units, all else being equal.
+b. They can focus on giving concessions to customers who spent more days being a member of Moviemagic rather than customers who are new to MovieMagic, since days_member has positive coefficient which contributes to an increase in the amount spent on concessions.This suggests that as "days_member" increases by one unit, the response variable amount_spent is  expected to increase by approximately 0.05 units, all else being equal.
+c. They can also focus on giving concessions to customers who have seen more number of movies in the last time period rather than the cusotmer who have seen lesser number of movies, since movies_seen has positive coefficient which contributes to an increase in the amount spent on concessions.This means that as "movies_seen" increases by one unit, the response variable amount_spent is expected  to increase by approximately 0.61 units, all else being equal.
+d. Finally, the Moviemagic team should not focus much on giving concessions to customers who are subscribed to more no.of streaming services, since streaming has negative coefficient which contributes to a decrease in the amount spent on concessions. This means that as the "streaming" variable increases by one unit, the response variable amount_spent is expected to decrease by approximately 0.72 units, all else being equal.
+
+## Question - 6
+
+**MovieMagic wants to visualize the reviews through a wordcloud and wants to find out which words are used most commonly in the reviews that customers write for MovieMagic. Create 2 wordclouds - one for reviews that received 3, 4, or 5 star ratings and another with reviews that received 1 or 2 stars ratings. Knowing the prominent words in each of the wordclouds, what strategies can be developed in messaging customers? Would the strategies differ?**
+
+### Text Analysis - Word cloud
+
+```{r}
+library(tm)
+library(RTextTools)
+library(wordcloud)
+library(ggplot2)
+library(topicmodels)
+library(tidytext)
+library(ggplot2)
+library(dplyr)
+
+text <- read.csv(url("http://data.mishra.us/files/project_reviews.csv"))
+
+text$valence[text$star == 1 | text$star == 2] = "Negative"
+text$valence[text$star == 3 | text$star == 4 | text$star == 5] = "Positive"
+text$text <- as.character(text$text)
+set.seed(1234)
+
+# Creating data frame with positive valence
+positive_text <- text[text$valence == "Positive", ]
+
+positive_corpus <- VCorpus(VectorSource(positive_text$text))
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+# a function to clean /,@,\\,|
+positive_corpus <- tm_map(positive_corpus, toSpace, "/|@|\\|")
+positive_corpus<- tm_map(positive_corpus, stripWhitespace)
+positive_corpus <- tm_map(positive_corpus, content_transformer(tolower))
+positive_corpus <- tm_map(positive_corpus, removeNumbers)
+positive_corpus <- tm_map(positive_corpus, removePunctuation)
+positive_corpus <- tm_map(positive_corpus, removeWords, stopwords(kind="en"))
+
+dtm_positive <- TermDocumentMatrix(positive_corpus)
+m_positive <- as.matrix(dtm_positive)
+v_positive <- sort(rowSums(m_positive),decreasing=TRUE)
+d_positive <- data.frame(word = names(v_positive),freq=v_positive)
+
+wordcloud(words = d_positive$word, freq = d_positive$freq, min.freq = 2, max.words=100, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"),scale=c(3, 0.7))
+```
+
+```{r}
+# Creating data frame with negative valence
+negative_text <- text[text$valence == "Negative", ]
+
+negative_corpus <- VCorpus(VectorSource(negative_text$text))
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+# a function to clean /,@,\\,|
+negative_corpus <- tm_map(negative_corpus, toSpace, "/|@|\\|")
+negative_corpus<- tm_map(negative_corpus, stripWhitespace)
+negative_corpus <- tm_map(negative_corpus, content_transformer(tolower))
+negative_corpus <- tm_map(negative_corpus, removeNumbers)
+negative_corpus <- tm_map(negative_corpus, removePunctuation)
+negative_corpus <- tm_map(negative_corpus, removeWords, stopwords(kind="en"))
+
+dtm_negative <- TermDocumentMatrix(negative_corpus)
+m_negative <- as.matrix(dtm_negative)
+v_negative <- sort(rowSums(m_negative),decreasing=TRUE)
+d_negative <- data.frame(word = names(v_negative),freq=v_negative)
+
+wordcloud(words = d_negative$word, freq = d_negative$freq, min.freq = 2, max.words=100, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"),scale=c(3, 0.7))
+```
+
+> In the word cloud of positive reviews, terms such as 'great,' 'nice,' 'good,' 'fun,' and 'super' stand out prominently. These words strongly indicate that customers are delighted when expressing their experiences. For MovieMagic, this presents a remarkable opportunity to integrate these expressions of satisfaction into their marketing efforts. By emphasizing their outstanding service, they can seize the chance to not only allure new customers but also solidify their already positive brand image. Additionally, the frequent appearance of terms like 'pizza,' 'beer,' 'popcorn,' and 'butter' in the word cloud signifies that customers hold a favorable view of these food items. 
+
+> Conversely, the word cloud for negative reviews prominently features terms like 'hour' and 'wait'. These words appear frequently, signaling prolonged wait times as a source of high dissatisfaction and negative feedback. To address the concerns expressed in these negative reviews, MovieMagic should prioritize improvements in this aspect. Moreover, terms like 'salad,' 'burger,' and 'sauce' hint at areas where customers have expressed some disappointment regarding food items. It's imperative for MovieMagic to focus on enhancing these food offerings to attract a broader customer base which focuses on improving the quality and variety of food offerings. This can involve reevaluating suppliers, menu items, and preparation processes to ensure a more satisfying dining experience.
+
+> By combining the insights from both the regression analysis and the text analysis, we have a strong foundation for devising marketing strategies that resonate with different age groups. 
+For instance, highlighting the exceptional service highlighted in the positive word cloud can attract older customers who place a high value on having a delightful experience. At the same time, addressing the concerns raised in negative reviews can help create a more inclusive and diverse customer base. 
+Develop a membership loyalty program with tiered benefits to incentivize higher spending for concessions, based on days_member i.e days since a particular customer has been a member of Moviemagic and provide perks like free upsizes, discounts, and redeemable points to top spenders.
+
+## Question - 7 
+
+**MovieMagic also wants to use topic modeling to find out whether the content in the reviews could be categorized into specific topics. If you used LDA to create 3 topic groups (k = 3), MovieMagic wants you to use the words within the 3 topics to infer topic title. Which term is the most relevant in each of the three topics and how would it inform your business strategy? Given the topics you inferred what strategies would you suggest are possible for MovieMagic if it wants to increase concession sales. Would you recommend promotions or advertising or loyalty program; justify your choice of business strategy?**
+
+### Text Analysis - Topic Modeling
+
+```{r, warning=FALSE, message=FALSE}
+# Assuming you have a data frame called 'reviews' with a column 'text'
+corpus <- Corpus(VectorSource(data2$text))
+
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+corpus <- tm_map(corpus, toSpace, "/|@|\\|")
+corpus <- tm_map(corpus, stripWhitespace) # remove white space
+
+# Preprocessing of the text data
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation) # remove punctuations
+corpus <- tm_map(corpus, removeNumbers) # remove numbers
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+
+# Create a Document-Term Matrix
+dtm <- DocumentTermMatrix(corpus)
+
+set.seed(234)
+rowTotals <- apply(dtm, 1, sum)
+
+dtm <- dtm[rowTotals>0, ]
+
+# Fit the LDA model
+lda_model <- LDA(dtm, k = 3, method="Gibbs", control = NULL)  # Assuming you want 3 topics
+topics <- tidy(lda_model, matrix = "beta") # beta is the topic word density 
+# Get terms associated with each topic
+terms(lda_model, 10)  # Change 10 to the number of terms you want to display
+
+top_terms <- topics %>%   
+group_by(topic) %>%
+top_n(10, beta) %>% # top_n picks 10 topics.
+ungroup() %>%
+arrange(topic, -beta)
+top_terms %>%
+mutate(term = reorder(term, beta)) %>%
+ggplot(aes(term, beta, fill = factor(topic))) +
+geom_col(show.legend = FALSE) +
+facet_wrap(~ topic, scales = "free") +
+coord_flip()
+```
+  
+> Topic 1 primarily revolves around customer discussions related to the quality of food and concessions, with noticeable mentions of "food," "good," and references to "time". Hence Topic1 title can be - **Quality of food**. This indicates a dual focus on the quality of offerings and the efficiency of service. To increase concession sales, MovieMagic should prioritize enhancing food quality and ensuring swift and efficient service, thereby ensuring a delightful concession experience for customers. 
+
+> In contrast, Topic 2 centers on customer experiences, with a strong emphasis on positive terms like "great," "like," and "really." Hence Topic2 title can be - **Customer Experience with food**.This suggests a high level of customer satisfaction. To capitalize on this positive sentiment, MovieMagic can highlight their exceptional customer experience through marketing and communication efforts. Encouraging customers to share their positive experiences can further enhance the brand's appeal. 
+
+> Finally, Topic 3 pertains to the movie theater itself, with terms such as "movie," "place," and "fun."Hence Topic3 title can be - **Movie experience** .This underscores the entertainment value of the theater. For MovieMagic, it is crucial to maintain a strong focus on providing an outstanding movie-watching experience. They can explore promotional activities and special events that enhance the overall entertainment value, such as themed movie nights or exclusive screenings, to attract more customers to the theater.
+
+> Recommendations integrating regression analysis,word cloud and topic modelling:
+1. **Customized marketing for age groups:** Moveimagic need to customize marketing strategies that resonate with different age groups. For instance, older customers, as highlighted in the regression analysis, value a pleasant experience. Simultaneously, it should emphasize on the exceptional customer experience, as indicated in Topic 2 of the topic modeling, to attract a diverse customer base of all ages.
+2. **Quality Enhancement of Food and Concessions:** The text analysis revealed customers' sentiments about the quality of food and concessions. Moviemagic need to leverage this feedback to prioritize enhancing food quality and ensuring efficient service. This aligns with Topic 1 of the topic modeling, focusing on the "Quality of food." By improving the concession experience, it can create a positive atmosphere that encourages increased spending, as shown in the regression analysis.
+3. **Customer Testimonials and Social Proof:** Moviemaigc needs to capitalize on the positive terms and sentiments identified in Topic 2 of the topic modeling. It should encourage customers to share their positive experiences through testimonials and social proof in your marketing efforts. This not only strengthens its brand image but also leverages the satisfied customer base identified in the regression analysis.
+4.**Promotional Activities for Movie Experience:** Topic 3 of the topic modeling highlights the significance of the "Movie experience." To attract more customers to the theater,Moviemaigc should explore promotional activities and special events that enhance the overall entertainment value. It should consider themed movie nights, exclusive screenings, or unique movie-related experiences to create excitement and drive attendance.
+
+```{r}
+senti_text<- read.csv(url("http://data.mishra.us/files/project_reviews.csv"))
+# create a corpus from character vectors from the imported .csv file
+senti_text <- VCorpus(VectorSource(senti_text$text))
+# now we are Creating a Document Term Matrix.
+dtm <- DocumentTermMatrix(senti_text)
+tidy_tweets <- tidy(dtm) # here data is in dtm format.
+#We need to convert it into tidy format using broom
+tweet_sentiments <- tidy_tweets %>%
+  inner_join(get_sentiments("afinn"), by = c(term = "word"))
+# we can use bing, afinn or nrc
+tweet_sentiments
+```
+
+```{r}
+tweet_sentiments <- tidy_tweets %>%
+  inner_join(get_sentiments("bing"), by = c(term = "word"))
+tweet_sentiments
+```
+
+```{r}
+tweet_sentiments <- tidy_tweets %>%
+  inner_join(get_sentiments("nrc"), by = c(term = "word"))
+tweet_sentiments
+```
+
+> The term "pretty" is encountered in various contexts across the analyzed documents, eliciting a spectrum of positive emotions like "anticipation," "joy," "positivity," and "trust." This indicates that when "pretty" is utilized in the text, it consistently generates feelings of enthusiasm, happiness, positivity, and trust, establishing it as a versatile and uplifting word in different document settings. Conversely, the term "smell" also appears in diverse document scenarios but tends to trigger negative emotions, including "anger," "disgust," and "negativity." This underscores the need for MovieMagic to address negative feedback by maintaining cleanliness at concession stands, as poor hygiene may be driving these negative sentiments among customers. Notably, there are a few negative reviews derived from sentiment analysis, indicating customer dissatisfaction due to service issues and high prices. MovieMagic should focus on improving these aspects to ensure customer satisfaction.
+
+## Question - 8
+**MovieMagic asks you whether your analysis reflects a causal relationship. Discuss any limitations of the dataset and your analysis regarding causal inference. What experiment might you recommend given these limitations and your analysis? What would be the experimental design? How would this lead to a deeper understanding of what business strategies would work? Make sure to clearly define the input variables, main effects, interactive influences (if any that you want to test for) and the outcome variable. Example – using the top terms from the LDA a 3 cell experiment can be designed to find out how using these terms in messaging before the movie begins influences concession sales.**
+
+
+> Based on the linear regression results, I see a causal relationship and here is how I would interpret potential causal relationships:
+Age has a significant positive coefficient(0.19), indicating older age likely causes higher spending. This aligns with theory that older consumers have more disposable income.
+Streaming has a significant negative coefficient(-0.85), suggesting increased streaming activity reduces spending. This could indicate streaming satisfies entertainment needs rather than complementing traditional spending.Because of increased number of OTT platforms the number of customers who actually visit a theatre got significantly reduced these days,
+Days_member has a very significant positive coefficient(0.04) indicating the number of days the customer being a member of Moviemagic is more increases spending on concessions. Being a member for more days likely causes higher spending, as expected since he/she would be a loyal customer.
+Movies_seen has a significant positive coefficient(0.5) indicating that the more number of movies the customer has seen implies increased spending on concessions.
+
+> The limitations in the dataset are that the predictors are not categorical which limits our scope of using ANOVA as a technique for causal analysis. 
+Also, the data should have been more seasonal to estimate how the amount spent on concessions is varying. 
+
+> Here is one approach to experimental design using A/B testing by considering control and experimental groups that could provide more causal insight for MovieMagic:
+1. Recruit a sample of new visitors to the MovieMagic website and randomly assign them to groups based on       their age,days_member,movies_seen.
+2. Randomly assign customers to different experimental groups, each exposed to a specific combination of        factors. For example, one group may attend an evening showtime with a specific movie genre, while another    may attend a matinee with different concession promotions.
+3. The control group receives the standard/old website experience.
+4. Experimental groups receive different versions of the website/promotions:
+   a. Promoting about benefits to customers using keywords from the LDA analysis used previously.
+   b. Different discount amounts on membership subscription with MovieMagic (e.g 10%, 20%).
+   c. Emphasizing different benefits like flexibility, cost savings, etc.
+   d. Adding reviews, testimonials from customers who had good experience.
+   e. Variations in website images, colors, layout to attract new customers.
+5. Track membership signups, engagement over time across groups.
+6. Follow-up survey on perceptions of MovieMagic.
+
+> Input Variables (Factors):
+  Movie Selection: Different movie genres and popular movies.
+  Concession Promotions: Various concession deals and discounts.
+  Time of Day: Matinee vs. Evening showtimes.
+  Customer Age Group: Categorize customers into age groups (e.g., young adults, families, seniors).
+  Movie Experience Enhancements: Special screenings, events, and themed movie nights.
+  
+> Interactive Influences: Moviemagic need to nvestigate interactions between factors, such as whether specific movie genres are more effective when paired with particular concession promotions.
+
+> Outcome Variable: The outcome variable is "Concession Sales," measured as the total revenue generated from concessions during the experiment.
+
+> Movie Magic can implement the following recommendations:
+>
+**1. Leverage Customer Analytics:**  MovieMagic should continuously gather and analyze behavioral data on customers to gain insights that inform and optimize business decisions. Tracking metrics on engagement, sales, and satisfaction over time will allow data-driven refinement of strategies.
+**2. Deploy Targeted Promotions:**  Run customized promotional offers for specific customer segments based on factors like demographics, movie preferences, and loyalty program tier. Tailored promotions can boost concession sales and visits for the most relevant audiences.
+**3. Focus on Customer-Centric Experiences:**  Prioritize customer-focused engagement through surveys, feedback channels, and monitoring reviews. This ensures strategies adapt to match changing needs and desires. Developing experiences around customer preferences strengthens satisfaction and loyalty. 
+**4.Offer Unique In-Theater Events:** Special movie-themed events like genre-specific marathons or holiday-related screenings can deepen customer engagement. These special experiences give existing customers new ways to enjoy movies while attracting new audiences.
+>
+> The main focus areas are leveraging data analytics, targeted promotions, customer engagement, and unique event offerings.
